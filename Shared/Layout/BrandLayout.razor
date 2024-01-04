@@ -1,0 +1,238 @@
+﻿@using B2S_API_Comm.Domain;
+@using B2S_API_Comm.Models;
+@using B2S_MOP.Models;
+@using B2S_MOP.Shared.CustomControls;
+
+<link rel="stylesheet" href="~/css/bootstrap/bootstrap.min.css" />
+
+<!--Layout Grid-->
+<div class="h-100 w-100 d-flex gap-3">
+    <div class="w-100">
+        <DBElementList @ref="BrandElementList" 
+                       GottenElements="new(BrandList)" 
+                       ElementSelectedCallback="SetBrand"
+                       ElementDeleteCallback="DeleteBrandDBCallback"
+                       ElementAddCallback="AddBrandDBCallback" />
+    </div>
+    <div class="w-100">
+        <DBElementList @ref="AliasElementList" 
+                       GottenElements="new(AliasList)" 
+                       ElementSelectedCallback="SetAlias"
+                       ElementDeleteCallback="DeleteAliasDBCallback"
+                       ElementAddCallback="AddAliasDBCallback"
+                       CanNotDeleteLastElement="true"/>
+    </div>
+    <div class="w-100 p-3 d-flex flex-column gap-4 theme-border">
+        <div class="d-flex flex-column gap-1">
+            <div>
+                <p class="fw-bold m-0">Products with brand</p>
+                <p class="m-0">@(_productsWithBrandCount ?? 0)</p>
+            </div>
+            <div class="d-flex flex-column gap-1">
+                <p class="fw-bold m-0">Brand</p>
+                <div class="d-flex">
+                    <input autocomplete="off" class="m-0 ps-1 w-100 theme-border" style="outline: none;" placeholder=@(string.IsNullOrEmpty(_originalBrandName) ? "Brand" : _originalBrandAliasName) @bind="@_brandName" @oninput="@((e) => { _brandName = (string?) e.Value; })" disabled=@(string.IsNullOrEmpty(_originalBrandName)) />
+                    <button class="primary-button d-flex justify-content-center align-items-center" style="height: 32px; aspect-ratio: 1/1;" disabled=@(!HasChanges(false)) @onclick="ChangeBrandName" >
+                        <i class="material-icons light-icon m-0">
+                            save
+                        </i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="w-100 theme-border" style="height: 1px;"></div>
+        <div class="d-flex flex-column gap-1">
+            <div class="d-flex flex-column gap-1">
+                <p class="fw-bold m-0">Brand alias</p>
+                <div class="d-flex">
+                    <input autocomplete="off" class="m-0 ps-1 w-100 theme-border" style="outline: none;" placeholder=@(string.IsNullOrEmpty(_originalBrandAliasName) ? "Brand alias" : _originalBrandAliasName) @bind="@_brandAliasName" @oninput="@((e) => { _brandAliasName = (string?) e.Value; })" disabled=@(string.IsNullOrEmpty(_originalBrandAliasName)) />
+                    <button class="primary-button d-flex justify-content-center align-items-center" style="height: 32px; aspect-ratio: 1/1;" disabled=@(!HasChanges(true)) @onclick="ChangeAliasName" >
+                        <i class="material-icons light-icon m-0">
+                            save
+                        </i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+
+    #region Variables
+    private int? _productsWithBrandCount = null;
+
+    private string? _brandName = string.Empty;
+    private string? _originalBrandName = string.Empty;
+
+    private string? _brandAliasName = string.Empty;
+    private string? _originalBrandAliasName = string.Empty;
+
+    [Parameter] public List<Brand> BrandList { get; set; } = new();
+    private List<BrandAlias> AliasList { get; set; } = new();
+
+    private DBElementList BrandElementList = new();
+    private DBElementList AliasElementList = new();
+    #endregion
+
+    #region Set Methods
+    /// <summary>
+    /// Updates information depending on the <see cref="Brand"/> selected. Used as a EventCallback
+    /// </summary>
+    public async void SetBrand()
+    {
+        _brandName = BrandElementList.SelectedElementName; // Set BrandName
+        _originalBrandName = BrandElementList.SelectedElementName; // Set Original_BrandName
+
+        // Deselect visual element and reset alias
+        AliasElementList.DeSelectSelectedEntry();
+        _brandAliasName = string.Empty;
+        _originalBrandAliasName = string.Empty;
+
+        // Get alias
+        IEnumerable<BrandAlias>? aliases = await GlobalVariables.B2SHttpClientHandler.GetAliasAsync(AliasGetOptions.Brand, _brandName);
+        if (aliases != null)
+        {
+            AliasList.Clear();
+            AliasList.AddRange(aliases);
+        }
+
+        _productsWithBrandCount = await GlobalVariables.B2SHttpClientHandler.GetCountAsync(CounterGetOptions.Brand, _brandName);
+
+        this.StateHasChanged(); // Update element
+    }
+
+    /// <summary>
+    /// Updates information depending on the <see cref="BrandAlias"/> selected. Used as a EventCallback
+    /// </summary>
+    public void SetAlias()
+    {
+        _brandAliasName = AliasElementList.SelectedElementName;
+        _originalBrandAliasName = AliasElementList.SelectedElementName;
+
+        this.StateHasChanged(); // Update element
+    }
+    #endregion
+
+    #region DeleteDB
+    public async void DeleteBrandDBCallback(bool confirm)
+    {
+        if (confirm)
+        {
+#if DEBUG
+    Console.WriteLine("DELETE BRAND");
+#endif
+            Brand brand = BrandList.First(b => { return b.BrdName.Equals(_brandName); });
+            if (brand != null)
+            {
+                await GlobalVariables.B2SHttpClientHandler.DeleteAsync(DeleteOptions.Brands, brand.BrdId);
+                BrandList.Remove(brand);
+                _brandName = string.Empty;
+                _originalBrandName = string.Empty;
+            }
+            AliasList.Clear();
+            _brandAliasName = string.Empty;
+            _originalBrandAliasName = string.Empty;
+            this.StateHasChanged(); // Update layout
+        }
+    }
+    public async void DeleteAliasDBCallback(bool confirm)
+    {
+        if (confirm)
+        {
+#if DEBUG
+    Console.WriteLine("DELETE ALIAS");
+#endif
+            BrandAlias alias = AliasList.First(a => { return a.AliAlias.Equals(_brandAliasName); });
+            if (alias != null)
+            {
+                await GlobalVariables.B2SHttpClientHandler.DeleteAsync(DeleteOptions.BrandAlias, alias.AliId);
+                AliasList.Remove(alias);
+                _brandAliasName = string.Empty;
+                _originalBrandAliasName = string.Empty;
+                this.StateHasChanged(); // Update layout
+            }
+        }
+    }
+    #endregion
+
+    #region AddDB
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="input"></param>
+    public async void AddBrandDBCallback(string input)
+    {
+#if DEBUG
+    Console.WriteLine("ADD BRAND " + input);
+#endif
+        Brand brand = new() { BrdName = input };
+        await GlobalVariables.B2SHttpClientHandler.PostAsync(PostOptions.Brands, brand);
+        brand = await GlobalVariables.B2SHttpClientHandler.GetBrandAsync(BrandGetOptions.Alias, brand.BrdName);
+        BrandList.Add(brand);
+
+        this.StateHasChanged(); // Update layout
+    }
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="input"></param>
+    public async void AddAliasDBCallback(string input)
+    {
+#if DEBUG
+    Console.WriteLine("ADD ALIAS " + input);
+#endif
+        BrandAlias alias = new() { AliAlias = input };
+        await GlobalVariables.B2SHttpClientHandler.PostAsync(PostOptions.BrandAlias, alias);
+        alias = (await GlobalVariables.B2SHttpClientHandler.GetAliasAsync(AliasGetOptions.Alias, alias.AliAlias)).First();
+        AliasList.Add(alias);
+
+        this.StateHasChanged(); // Update layout
+    }
+    #endregion
+
+    #region ChangeNameDB
+    /// <summary>
+    ///
+    /// </summary>
+    public async void ChangeBrandName()
+    {
+        Brand brand = BrandList.First(b => { return b.BrdName.Equals(_originalBrandName); });
+        brand.BrdName = _brandName;
+        await GlobalVariables.B2SHttpClientHandler.PutAsync(PutOptions.Brands, brand, brand.BrdId);
+
+        _brandName = brand.BrdName;
+        _originalBrandName = _brandName;
+        BrandElementList.ReSelectSelectedEntry();
+
+        this.StateHasChanged(); // Update layout
+    }
+    /// <summary>
+    ///
+    /// </summary>
+    public async void ChangeAliasName()
+    {
+        BrandAlias alias = AliasList.First(ig => { return ig.AliAlias.Equals(_originalBrandAliasName); });
+        alias.AliAlias = _brandAliasName;
+        await GlobalVariables.B2SHttpClientHandler.PutAsync(PutOptions.BrandAlias, alias, alias.AliId);
+
+        _brandAliasName = alias.AliAlias;
+        _originalBrandAliasName = _brandAliasName;
+        AliasElementList.ReSelectSelectedEntry();
+
+        this.StateHasChanged(); // Update layout
+    }
+    #endregion
+
+    /// <summary>
+    /// Method checks if the variables has been changed, and then returns if the user can click save or not
+    /// </summary>
+    /// <param name="isAliasInput"> Whether it is the brand alias input or not </param>
+    /// <returns> The result from the checks </returns>
+    private bool HasChanges(bool isAliasInput)
+    {
+        if (isAliasInput && _brandAliasName == _originalBrandAliasName) return false;
+        if (!isAliasInput && _brandName == _originalBrandName) return false;
+        return true;
+    }
+}

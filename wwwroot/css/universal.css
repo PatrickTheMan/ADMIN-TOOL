@@ -1,0 +1,17 @@
+﻿/*BUTTONS*/
+.b2s-button {
+	background-color: #EC2029;
+	color: #F1F1F1;
+	outline: none;
+	border: none;
+	font-weight: bold;
+}
+
+
+	.b2s-button:hover {
+		filter: brightness(90%);
+	}
+
+	.b2s-button:active {
+		filter: brightness(80%);
+	}

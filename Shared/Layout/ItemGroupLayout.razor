@@ -1,0 +1,134 @@
+﻿@using B2S_API_Comm.Models;
+@using B2S_MOP.Shared.CustomControls;
+@using B2S_API_Comm.Domain;
+
+<!--Layout Grid-->
+<div class="h-100 w-100 d-flex gap-3">
+
+    <!--ItemGroup list with search bar on top and +/- buttons below-->
+    <div class="w-100">
+        <DBElementList @ref="ItemGroupElementList" 
+            GottenElements="new(ItemGroupList)" 
+            ElementSelectedCallback="SetItemGroups"
+            ElementDeleteCallback="DeleteItemGroupDBCallback"
+            ElementAddCallback="AddItemGroupDBCallback" />
+    </div>
+
+    <!--Product count display with current ItemGroup, button for deassociation, button for product deletion, botton of the screen: cancel and save-->
+    <div class="w-100 p-3 d-flex flex-column gap-4 theme-border">
+        <div class="d-flex flex-column gap-1">
+            <div>
+                <p class="fw-bold m-0">Products with selected Item Group</p>
+                <p class="m-0">@(_productsWithItemGroupCount ?? 0)</p>
+            </div>
+            <div class="d-flex flex-column gap-1">
+                <p class="fw-bold m-0">Item group</p>
+                <div class="d-flex">
+                    <input autocomplete="off" class="m-0 ps-1 w-100 theme-border" style="outline: none;" placeholder=@(string.IsNullOrEmpty(_originalItemGroupName) ? "Item group" : _originalItemGroupName) @bind="@_itemGroupName" @oninput="@((e) => { _itemGroupName = (string?) e.Value; })" disabled=@(string.IsNullOrEmpty(_originalItemGroupName)) />
+                    <button class="primary-button d-flex justify-content-center align-items-center" style="height: 32px; aspect-ratio: 1/1;" disabled=@(!HasChanges()) @onclick="ChangeItemGroupName">
+                        <i class="material-icons light-icon m-0">
+                            save
+                        </i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@code {
+    private int? _productsWithItemGroupCount = null;
+
+    private string? _itemGroupName = string.Empty;
+    private string? _originalItemGroupName = string.Empty;
+
+    [Parameter] public List<ItemGroup> ItemGroupList { get; set; } = new();
+
+    DBElementList ItemGroupElementList = new();
+
+    /// <summary>
+    /// Updates information depending on the <see cref="BrandAlias"/> selected. Used as a EventCallback
+    /// </summary>
+    public async void SetItemGroups()
+    {
+        _itemGroupName = ItemGroupElementList.SelectedElementName;
+        _originalItemGroupName = ItemGroupElementList.SelectedElementName;
+
+        _productsWithItemGroupCount = await GlobalVariables.B2SHttpClientHandler.GetCountAsync(CounterGetOptions.ItemGroup, _itemGroupName);
+
+        this.StateHasChanged(); // Update element
+    }
+
+    #region DeleteDB
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="confirm"></param>
+    public async void DeleteItemGroupDBCallback(bool confirm)
+    {
+        if (confirm)
+        {
+#if DEBUG
+    Console.WriteLine("DELETE ITEMGROUP");
+#endif
+            ItemGroup itemGroup = ItemGroupList.First(ig => { return ig.GrpName.Equals(_itemGroupName); });
+            if (itemGroup != null)
+            {
+                await GlobalVariables.B2SHttpClientHandler.DeleteAsync(DeleteOptions.ItemGroups, itemGroup.GrpId);
+                ItemGroupList.Remove(itemGroup);
+                _itemGroupName = string.Empty;
+                _originalItemGroupName = string.Empty;
+                this.StateHasChanged(); // Update layout
+            }
+        }
+    }
+    #endregion
+
+    #region AddDB
+    /// <summary>
+    ///
+    /// </summary>
+    /// <param name="input"></param>
+    public async void AddItemGroupDBCallback(string input)
+    {
+#if DEBUG
+    Console.WriteLine("ADD ITEMGROUP " + input);
+#endif
+        ItemGroup itemGroup = new() { GrpName = input };
+        await GlobalVariables.B2SHttpClientHandler.PostAsync(PostOptions.ItemGroups, itemGroup);
+        itemGroup = await GlobalVariables.B2SHttpClientHandler.GetItemGroupAsync(ItemGroupGetOptions.ItemGroup ,itemGroup.GrpName);
+        ItemGroupList.Add(itemGroup);
+
+        this.StateHasChanged(); // Update layout
+    }
+    #endregion
+
+    #region ChangeNameDB
+    /// <summary>
+    /// 
+    /// </summary>
+    public async void ChangeItemGroupName()
+    {
+        ItemGroup itemGroup = ItemGroupList.First(ig => { return ig.GrpName.Equals(_originalItemGroupName); });
+        itemGroup.GrpName = _itemGroupName;
+        await GlobalVariables.B2SHttpClientHandler.PutAsync(PutOptions.ItemGroups, itemGroup, itemGroup.GrpId);
+
+        _itemGroupName = itemGroup.GrpName;
+        _originalItemGroupName = _itemGroupName;
+        ItemGroupElementList.ReSelectSelectedEntry();
+
+        this.StateHasChanged(); // Update layout
+    }
+    #endregion
+
+    /// <summary>
+    /// Method checks if the variables has been changed, and then returns if the user can click save or not
+    /// </summary>
+    /// <returns> The result from the checks </returns>
+    private bool HasChanges()
+    {
+        if (_itemGroupName == _originalItemGroupName) return false;
+        return true;
+    }
+}

@@ -1,0 +1,318 @@
+﻿@using B2S_API_Comm.Domain;
+@using B2S_MOP.Shared.Items
+@using B2S_API_Comm.Models;
+@using B2S_API_Comm.Services.Interfaces;
+@using B2S_API_Comm.Services.Models;
+@using B2S_MOP.Shared.CustomControls;
+@using global::Models.Handlers;
+
+<div class="d-flex flex-column gap-3 h-100">
+    <div class="h-50 d-flex justify-content-between gap-3">
+        <div class="d-flex flex-column p-2 gap-2 overflow-auto theme-foreground theme-border">
+            <div class="product-information-kv-box">
+                <p class="fw-bold m-0">Product Number</p>
+                <input autocomplete="off" class="m-0 ps-1 w-50 theme-border" style="outline: none;" @bind="@_productNumber" @oninput="@((e) => { _productNumber = (string?) e.Value; })" placeholder=@(_oldProduct?.PrdProductNumber ?? "Product No.") type="text" />
+            </div>
+
+            <div class="product-information-kv-box">
+                <p class="fw-bold m-0">Type Number</p>
+                <input autocomplete="off" class="m-0 ps-1 w-50 theme-border" style="outline: none;" @bind="@_typeNumber" @oninput="@((e) => { _typeNumber = (string?) e.Value; })" placeholder=@(_oldProduct?.PrdTypeNumber ?? "Type No.") type="text" />
+            </div>
+
+            <div class="product-information-kv-box">
+                <p class="fw-bold m-0">Brand</p>
+                <Dropdown @ref="_brandDropdown" Selected="@(_brandName)" Items="@(_brandNames)" OnSelectedChanged="SetBrandName" />
+            </div>
+
+            <div class="product-information-kv-box">
+                <p class="fw-bold m-0">Item group</p>
+                <Dropdown @ref="_itemGroupDropdown" Selected="@(_groupName)" Items="@(_groupNames)" OnSelectedChanged="SetGroupName" />
+            </div>
+
+            <div class="d-flex gap-2">
+                <div class="product-information-kv-box">
+                    <p class="fw-bold m-0">EAN</p>
+                    <input autocomplete="off" class="m-0 ps-1 w-100 theme-border" style="outline: none;" @bind="@_ean" @oninput="@((e) => { _ean = (string?) e.Value; })" placeholder=@(_oldProduct?.PrdEanGlr ?? "EAN/GLR No.") type="text" />
+                </div>
+
+                <div class="product-information-kv-box">
+                    <p class="fw-bold m-0">UPC</p>
+                    <input autocomplete="off" class="m-0 ps-1 w-100 theme-border" style="outline: none;" @bind="@_upc" @oninput="@((e) => { _upc = (string?) e.Value; })" placeholder=@(_oldProduct?.PrdUpc ?? "UPC No.") type="text" />
+                </div>
+            </div>
+        </div>
+        <div class="w-100 d-flex flex-column p-2 gap-1 theme-foreground theme-border">
+            <p class="fw-bold m-0">Product description</p>
+            <textarea class="m-0 overflow-auto ps-1 w-100 h-100 theme-border" style="outline: none; resize: none;" spellcheck="true" @bind=@_productText @oninput="@((e) => { _productText = (string?) e.Value; })" placeholder="@(_oldProduct?.PrdProductText ?? "No description has been provided for this product")" />
+        </div>
+    </div>
+    <div class="w-100 h-50 p-2 gap-2 d-flex flex-wrap align-content-start justify-content-start overflow-auto theme-border theme-foreground">
+        @foreach (var pair in _specifications)
+        {
+            <ProductSpecification SpecificationName="@(pair.Key)" 
+                                   SpecificationValue="@(pair.Value)"
+                                   OnDeleteCallback="RemoveSpecification" />
+        }
+    </div>
+
+    <div class="w-100 d-flex justify-content-between">
+        <button class="tertiary-button" @onclick="OpenAddSpecificationPopUp">Add specification</button>
+        <div class="d-flex gap-2">
+            <button class="secondary-button" disabled=@(!HasChanges()) @onclick="OpenResetPopUp">Reset</button>
+            <button class="secondary-button" @onclick="OpenDeletePopUp">Delete</button>
+            <button class="primary-button" disabled=@(!HasChanges()) @onclick="OpenSavePopUp">Save</button>
+        </div>
+    </div>
+</div>
+
+<CustomPopUp @ref="_infoPopup"
+             Title="Duplicate found"
+             Description="@($"A duplicate specification has been found and will not be added:{_duplicatesString}")"
+             PopUpType=Models.PopUpColors.Info 
+             OnActionCallback="ResetDupletPopup" />
+
+<CustomPopUp @ref="_resetPopUp"
+             Title="Reset changes"
+             Description="Are you sure you want to reset your changes to this product, your action can only be reverse manually."
+             HasChoice=true
+             PopUpType=Models.PopUpColors.Info
+             OnActionCallback="ResetChanges" />
+
+<CustomPopUp @ref="_deletePopUp"
+             Title="Delete product"
+             Description="Are you sure you want to delete this product, your action is not reversable."
+             HasChoice=true
+             PopUpType=Models.PopUpColors.Warning
+             OnActionCallback="DeleteProduct" />
+
+<CustomPopUp @ref="_savePopUp"
+             Title="Save changes"
+             Description="Are you sure you want to save your changes to this product, your action can only be reverse manually."
+             HasChoice=true
+             PopUpType=Models.PopUpColors.Info
+             OnActionCallback="SaveChanges" />
+
+<CustomInputPopUp 
+    @ref="_addSpecificationPopUp"
+    Title="Add specification"
+    Description="Your input is required to add a specification, please fill out all the fields below and then click confirm."
+    InputLabels=@(new List<string>() { "Name", "Value" })
+    OnInputSentCallback="AddSpecification"
+    />
+
+@code {
+    [Parameter] public Product? Product { get; set; }
+    private Product _product = new();
+    private Product _oldProduct = new();
+    [Parameter] public List<Brand>? Brands { get; set; }
+    [Parameter] public List<ItemGroup>? Groups { get; set; }
+    [Parameter] public EventCallback ProductLayoutCloseCallBack { get; set; }
+    [Parameter] public EventCallback<Product> ProductUpdateCallBack { get; set; }
+
+    private B2SSpecificationHandler _specificationHandler = new();
+
+    private CustomPopUp _infoPopup = new();
+    private void OpenDupletPopUp() => _infoPopup.Show();
+    private void ResetDupletPopup() => _duplicatesString = string.Empty;
+
+    private CustomPopUp _resetPopUp = new();
+    private void OpenResetPopUp() => _resetPopUp.Show();
+
+    private CustomPopUp _deletePopUp = new();
+    private void OpenDeletePopUp() => _deletePopUp.Show();
+
+    private CustomPopUp _savePopUp = new();
+    private void OpenSavePopUp() => _savePopUp.Show();
+
+    private CustomInputPopUp _addSpecificationPopUp = new();
+    private void OpenAddSpecificationPopUp() => _addSpecificationPopUp.Show();
+
+    private Dropdown _brandDropdown = new();
+    private Dropdown _itemGroupDropdown = new();
+
+    private List<string> _brandNames;
+    private List<string> _groupNames;
+
+    private bool initialized = false;
+
+    protected override void OnInitialized() {
+        base.OnInitialized();
+
+        if (initialized is false) {
+            _brandNames = new();
+            foreach (Brand b in Brands) {
+                _brandNames.Add(b.BrdName);
+            }
+
+            _groupNames = new();
+            foreach (ItemGroup g in Groups) {
+                _groupNames.Add(g.GrpName);
+            }
+            initialized = true;
+        }
+    }
+
+    private List<KeyValuePair<string, string>> _specifications = new();
+    private string? _productNumber = string.Empty;
+    private string? _typeNumber = string.Empty;
+    private string? _brandName = null;
+    private string? _groupName = null;
+    private string? _ean = string.Empty;
+    private string? _upc = string.Empty;
+    private string? _productText = string.Empty;
+
+    private string _duplicatesString = string.Empty;
+
+    #region HasChanges
+    private bool HasChanges() {
+
+        if (_productNumber != _product.PrdProductNumber)
+            return true;
+
+        if (_typeNumber != _product.PrdTypeNumber)
+            return true;
+
+        if (_ean != _product.PrdEanGlr)
+            return true;
+
+        if (_upc != _product.PrdUpc)
+            return true;
+
+        if (_productText != _product.PrdProductText)
+            return true;
+
+        if (_product.BrdId == null && _brandName != null)
+            return true;
+
+        if (_brandName != null && Brands[_brandNames.IndexOf(_brandName)].BrdId == _product.BrdId)
+            return true;
+
+        if (_product.GrpId == null && _groupName != null)
+            return true;
+
+        if (_groupName != null && Groups[_groupNames.IndexOf(_groupName)].GrpId == _product.GrpId)
+            return true;
+
+        return false;
+    }
+    #endregion
+
+    #region Dropdown Info Update
+    private void SetBrandName(string brandName)
+    {
+        _brandName = brandName;
+    }
+    private void SetGroupName(string groupName)
+    {
+        _groupName = groupName;
+    }
+    #endregion
+
+    #region Basic Func. (Reset, Delete, Save)
+    /// <summary>
+    /// This will set the binded data to the original data
+    /// The product will always contain the original pre-change data until saved
+    /// </summary>
+    private void ResetChanges(bool confirm)
+    {
+        if (!confirm) return;
+        ResetUIInfo();
+    }
+
+    private async void DeleteProduct(bool confirm) 
+    {
+        if (!confirm) return;
+        await GlobalVariables.B2SHttpClientHandler.DeleteAsync(DeleteOptions.Products, _product.PrdId);
+        await ProductLayoutCloseCallBack.InvokeAsync();
+    }
+
+    private async void SaveChanges(bool confirm) 
+    {
+        if (!confirm) return;
+
+        _product.PrdProductNumber = _productNumber;
+        _product.PrdTypeNumber = _typeNumber;
+        if (!string.IsNullOrEmpty(_brandName))
+            _product.BrdId = Brands.First(b => b.BrdName.Equals(_brandName)).BrdId;
+        if (!string.IsNullOrEmpty(_groupName))
+            _product.GrpId = Groups.First(g => g.GrpName.Equals(_groupName)).GrpId;
+        _product.PrdEanGlr = _ean;
+        _product.PrdUpc = _upc;
+        _product.PrdProductText = _productText;
+        //Specifications are set on the fly
+
+        GlobalVariables.B2SHttpClientHandler.PutAsync(PutOptions.Products, _product, _product.PrdId);
+        await ProductUpdateCallBack.InvokeAsync(_product);
+
+        ResetUIInfo();
+    }
+    #endregion
+
+    #region Specification Func.
+    public void AddSpecification(List<KeyValuePair<string, string?>> headerValuePairs)
+    {
+        bool duplicates = false;
+
+        // Comes in header + value pairs
+        for (int i = 0; i < headerValuePairs.Count; i++)
+        {
+            string key = headerValuePairs[i].Value;
+            string value = headerValuePairs[i+1].Value;
+            if (!_specificationHandler.HasSpecification(_product, key))
+            {
+                _specificationHandler.AddSpecification(ref _product, new(key, value));
+            }
+            else
+            {
+                _duplicatesString += $" {key},";
+                duplicates = true;
+            }
+            i++;
+        }
+        if (duplicates) 
+        {
+            _duplicatesString = _duplicatesString.Substring(0, _duplicatesString.Length - 1); // Remove last comma
+            OpenDupletPopUp();
+        }
+        _specifications = _specificationHandler.GetSpecifications(_product);
+    }
+    public void RemoveSpecification(string specificationName)
+    {
+        _specificationHandler.RemoveSpecification(ref _product, specificationName);
+        _specifications = _specificationHandler.GetSpecifications(_product);
+
+    }
+    #endregion
+
+    #region Parameters Update
+    protected override async void OnParametersSet() 
+    {
+        ResetUIInfo();
+    }
+    #endregion
+
+    #region Reset UI info
+    private async void ResetUIInfo()
+    {
+        _product = new(Product);
+        _oldProduct = new(_product);
+
+        _productNumber = _product.PrdProductNumber;
+        _typeNumber = _product.PrdTypeNumber;
+        if (_product.BrdId.HasValue)
+        {
+            _brandName = Brands.First(b => b.BrdId == _product.BrdId.Value).BrdName;
+        } else { _brandName = null; }
+        if (_product.GrpId.HasValue)
+        {
+            _groupName = Groups.First(g => g.GrpId == _product.GrpId.Value).GrpName;
+        } else { _groupName = null; }
+        _ean = _product.PrdEanGlr;
+        _upc = _product.PrdUpc;
+        _productText = _product.PrdProductText;
+        _specifications = _specificationHandler.GetSpecifications(_product);
+
+        this.StateHasChanged();
+    }
+    #endregion
+}

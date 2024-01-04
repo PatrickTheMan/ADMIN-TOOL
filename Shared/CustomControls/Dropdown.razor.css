@@ -1,0 +1,48 @@
+﻿.menu {
+    width: 100%;
+    min-width: fit-content;
+}
+
+.menu-header {
+    cursor: pointer;
+}
+
+/* DO NOT MODIFY OR REMOVE Z-INDEX VALUE */
+.menu-header {
+    z-index: 1;
+}
+
+/* DO NOT MODIFY OR REMOVE Z-INDEX VALUE */
+.menu-content {
+    z-index: 2; /* should be larger than menu-header z-index */
+}
+
+.menu-header:hover > i {
+    color: var(--main-color);
+}
+
+.menu-content-item {
+    color: var(--main-color);
+    transition: background-color 0.2s, color 0.2s;
+    cursor: pointer;
+}
+
+    .menu-content-item:hover {
+        background-color: var(--main-color);
+        color: var(--light-foreground-color);
+    }
+
+.menu-content:last-child {
+    border-bottom: 1px solid var(--light-border-color);
+}
+
+@media (prefers-color-scheme: dark) {
+    .menu-content-item:hover {
+        background-color: var(--main-color);
+        color: var(--dark-foreground-color);
+    }
+
+    .menu-content:last-child {
+        border-bottom: 1px solid var(--dark-border-color);
+    }
+}

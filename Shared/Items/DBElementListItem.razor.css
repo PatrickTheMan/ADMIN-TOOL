@@ -1,0 +1,37 @@
+﻿.db-element-list-item-container {
+	height: min-content;
+	background-color: transparent;
+	color: var(--dark-text-color);
+	transition: background-color 0.2s, color 0.2s;
+	cursor: pointer;
+}
+
+	.db-element-list-item-container:hover {
+		background-color: rgba(var(--main-color-rgb), 0.13);
+	}
+
+		.db-element-list-item-container:hover p {
+			color: var(--main-color);
+		}
+
+.selected-db {
+	background-color: var(--main-color);
+	color: var(--light-text-color);
+	transition: background-color 0.2s, color 0.2s;
+}
+
+@media (prefers-color-scheme: dark) {
+	.db-element-list-item-container {
+		height: min-content;
+		background-color: transparent;
+		color: var(--light-text-color);
+		transition: background-color 0.2s, color 0.2s;
+		cursor: pointer;
+	}
+
+	.selected-db {
+		background-color: var(--main-color);
+		color: var(--dark-text-color);
+		transition: background-color 0.2s, color 0.2s;
+	}
+}

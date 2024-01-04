@@ -1,0 +1,12 @@
+﻿.search-bar-container-main {
+    width: 320px;
+    height: 64px;
+}
+
+/* ADVANCED SEARCH FILTER */
+.advanced-filter-container {
+    top: 8px;
+    left: 328px;
+    width: 320px;
+    z-index: 99;
+}

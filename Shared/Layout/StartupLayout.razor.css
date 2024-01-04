@@ -1,0 +1,18 @@
+﻿
+@media (max-width: 1050px) {
+    .hint-box-l {
+        flex-direction: column;
+        align-items: center;
+        width: 4.5rem;
+        word-break: break-word;
+        text-align: center;
+    }
+
+    .hint-box-r {
+        flex-direction: column-reverse;
+        align-items: center;
+        width: 4.5rem;
+        word-break: break-word;
+        text-align: center;
+    }
+}

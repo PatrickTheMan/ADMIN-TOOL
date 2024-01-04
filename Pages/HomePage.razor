@@ -1,0 +1,336 @@
+﻿@page "/"
+
+@using B2S_API_Comm.Models;
+@using B2S_API_Comm.Services.Interfaces;
+@using B2S_API_Comm.Services.Models;
+@using B2S_API_Comm.Domain;
+@using System.Text.RegularExpressions;
+@using B2S_MOP.Models;
+@using B2S_MOP.Shared.CustomControls
+@using B2S_MOP.Shared.Items
+@using B2S_MOP.Shared.Layout
+@using Newtonsoft.Json;
+@using GlobalVariables = B2S_API_Comm.Models.GlobalVariables;
+
+<PageTitle>Buy2Sell | Admin</PageTitle>
+
+<div id="panel-container" class="d-flex vh-100 vw-100">
+    <div id="left-panel" class="h-100 d-flex flex-column theme-border-end theme-foreground">
+        <SearchBar OnSearch="GetProductsFromSearch" Brands=@(_brands) Groups=@(_itemGroups) />
+        <div id="product-list" class="h-100 w-100 d-flex flex-column overflow-auto p-2 gap-2">
+            @for (int i = 0; i < _products.Count(); i++)
+            {
+                <ProductListItem Index=@i Product=@_products[i] OnClickCallback="OpenProduct" />
+            }
+        </div>
+    </div>
+
+    <div id="center-container" class="h-100 w-100 d-flex flex-column p-5">
+        <div id="tab-bar" class="d-flex flex-row justify-content-between">
+            <div id="product-tabs" class="d-flex flex-row gap-2" style="height: 31px; width: 200px;">
+                <div @onclick="CloseProduct" class="close-product d-flex justify-content-center align-items-center theme-border border-bottom-0 theme-foreground">
+                    <i class="material-icons icon-main-hover m-0" style="cursor: pointer; font-size: 28px;">
+                        close
+                    </i>
+                </div>
+                <Dropdown RemoveBottomBorder=true Selected=@_selectedProduct?.PrdProductNumber Items=@(_productsOpened.Select(pO => pO.PrdProductNumber).ToList()) OnSelectedChanged="SetProduct" />
+            </div>
+            <div id="category-tabs" class="d-flex flex-row gap-2" style="height: 31px;">
+                <CustomTab TabID=1
+                           TabText="Add product"
+                           CanClose=false
+                           OnClickCallback="SetLayout"
+                           IsSelected=@(_selectedLayout == PageOptions.AddProduct) />
+                <CustomTab TabID=2
+                           TabText="Item groups"
+                           CanClose=false
+                           OnClickCallback="SetLayout"
+                           IsSelected=@(_selectedLayout == PageOptions.ItemGroups) />
+
+                <CustomTab TabID=3
+                           TabText="Brands"
+                           CanClose=false
+                           OnClickCallback="SetLayout"
+                           IsSelected=@(_selectedLayout == PageOptions.Brands) />
+            </div>
+        </div>
+        <div id="center-panel" class="h-100 w-100 p-3 theme-border theme-foreground">
+			@switch(_selectedLayout)
+			{
+				case PageOptions.Startup:
+					<StartupLayout />
+					break;
+				case PageOptions.Product:
+                    <ProductLayout Product=@(_selectedProduct) Brands=@(_brands) Groups=@(_itemGroups) ProductLayoutCloseCallBack="@(CloseProduct)" ProductUpdateCallBack="UpdateProductCallBack" />
+					break;
+                case PageOptions.AddProduct:
+                    <AddProductLayout Brands=@(_brands) Groups=@(_itemGroups) />
+                    break;
+				case PageOptions.ItemGroups:
+                    <ItemGroupLayout ItemGroupList="@(_itemGroups)" />
+					break;
+				case PageOptions.Brands:
+					<BrandLayout BrandList="@(_brands)" />
+					break;
+				case PageOptions.Empty:
+					<EmptyLayout />
+					break;
+			}
+        </div>
+    </div>
+</div>
+
+@code {
+    #region Variables
+    private List<Product> _productsOpened = new();
+    private Product? _selectedProduct;
+
+    private PageOptions _selectedLayout = PageOptions.Startup;
+
+    private List<Product> _products = new();
+    private List<Brand> _brands = new();
+    private List<ItemGroup> _itemGroups = new();
+    private List<BrandAlias> _alias = new();
+    #endregion
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+
+        SetBrandsFromDB();
+        SetItemGroupsFromDB();
+        SetAliasFromDB();
+    }
+
+    #region Tabs
+    /// <summary>
+    /// Add a new product to the dropdown if not already open
+    /// Then it will select said product, regardless if the product is new or old
+    /// </summary>
+    /// <param name="productIndex"> Index from the product you clicked on </param>
+    private void OpenProduct(int productIndex)
+    {
+        Product? p = null;
+        try
+        {
+            p = _productsOpened.First(p => p.PrdProductNumber.Equals(_products[productIndex].PrdProductNumber));
+        } catch {}
+
+        if (p != null)
+        {
+            int index = _productsOpened.IndexOf(p);
+            _selectedProduct = p;
+            SetLayout(0);
+        }
+        else
+        {
+            _productsOpened.Add(_products[productIndex]);
+            _selectedProduct = _productsOpened[_productsOpened.Count - 1];
+            SetLayout(0);
+        }
+    }
+
+    /// <summary>
+    /// Sets the layout to products, and then sets the selected product to the clicked option
+    /// </summary>
+    /// <param name="productNumber"> product number from the product you clicked on </param>
+    private void SetProduct(string productNumber)
+    {
+        _selectedProduct = _productsOpened.Find(pO => pO.PrdProductNumber == productNumber);
+        if (_selectedLayout != PageOptions.Product && _selectedProduct != null) SetLayout(0);
+    }
+
+    /// <summary>
+    /// Closes the chosen product and selects a neighboring product
+    /// </summary>
+    private void CloseProduct()
+    {
+
+        if (_selectedLayout == PageOptions.Startup || _selectedLayout == PageOptions.Empty) return;
+
+        if (_selectedLayout != PageOptions.Product)
+        {
+            _selectedLayout = PageOptions.Empty;
+        } 
+        else
+        {
+            if (_selectedProduct == null) return; // Does nothing
+            int selectedProductIndex = _productsOpened.IndexOf(_selectedProduct);
+            if (_productsOpened.Count > 1)
+            {
+                if (_productsOpened.Count - 1 > selectedProductIndex)
+                {
+                    _selectedProduct = _productsOpened[selectedProductIndex + 1];
+                }
+                else
+                {
+                    _selectedProduct = _productsOpened[selectedProductIndex - 1];
+                }
+                SetLayout(0);
+            }
+            else
+            {
+                // Close the product layout and set to empty
+                _selectedLayout = PageOptions.Empty;
+                _selectedProduct = null;
+            }
+            _productsOpened.RemoveAt(selectedProductIndex);
+        }
+    }
+
+    /// <summary>
+    /// Changes the layout to the desired one
+    /// </summary>
+    /// <param name="layout"> The chosen layout you want to set the center panel to </param>
+    private void SetLayout(int layoutIndex)
+    {
+        switch (layoutIndex)
+        {
+            case 0:
+                {
+#if DEBUG
+	Console.WriteLine("LAYOUT: To Product");
+#endif
+                    _selectedLayout = PageOptions.Product;
+                    break;
+                }
+            case 1:
+                {
+#if DEBUG
+	Console.WriteLine("LAYOUT: To Add Product");
+#endif
+                    _selectedLayout = PageOptions.AddProduct;
+                    break;
+                }
+            case 2:
+                {
+#if DEBUG
+	Console.WriteLine("LAYOUT: To ItemGroups");
+#endif
+                    _selectedLayout = PageOptions.ItemGroups;
+                    break;
+                }
+            case 3:
+                {
+#if DEBUG
+	Console.WriteLine("LAYOUT: To Brands");
+#endif
+                    _selectedLayout = PageOptions.Brands;
+                    break;
+                }
+        }
+#if DEBUG
+	Console.WriteLine("LAYOUT: Switch Completed");
+#endif
+    }
+    #endregion
+    #region Update
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="product"></param>
+    private void UpdateProductCallBack(Product product)
+    {
+        _productsOpened[_productsOpened.IndexOf(_selectedProduct)] = product;
+        _selectedProduct = product;
+    }
+    #endregion
+    #region Searching
+    /// <summary>
+    /// Gets the products based on the searchbar search
+    /// </summary>
+    /// <param name="products"> This is strictly used by the searchbar </param>
+    private void GetProductsFromSearch(List<Product> products)
+    {
+        _products.Clear();
+        _products = new List<Product>(products);
+    }
+    #endregion
+    #region DB
+    private async void SetBrandsFromDB()
+    {
+#if DEBUG
+    Console.WriteLine("BRAND: Get");
+#endif
+        if (_brands.Count() == 0)
+        {
+#if DEBUG
+			Console.WriteLine("BRAND: Update from BD");
+#endif           
+            IEnumerable<Brand>? brandsDB = await GlobalVariables.B2SHttpClientHandler.GetBrandsAsync();
+            if (brandsDB != null && brandsDB.Count() > 0)
+            {
+                _brands.AddRange(brandsDB);
+                this.StateHasChanged();
+            }
+            else
+            {
+#if DEBUG
+				Console.WriteLine("BRAND: Failed to get Brands");
+#endif
+            }
+        }
+#if DEBUG
+		Console.WriteLine($"BRAND: Got: {_brands.Count()}");
+#endif
+    }
+
+    private async void SetItemGroupsFromDB()
+    {
+#if DEBUG
+        Console.WriteLine("ITEMGROUP: Get");
+#endif
+        if (_itemGroups.Count() == 0)
+        {
+#if DEBUG
+			Console.WriteLine("ITEMGROUP: Update from BD");
+#endif
+            IEnumerable<ItemGroup>? itemGroupsDB = await GlobalVariables.B2SHttpClientHandler.GetItemGroupsAsync();
+            if (itemGroupsDB != null && itemGroupsDB.Count() > 0)
+            {
+                _itemGroups.AddRange(itemGroupsDB);
+                this.StateHasChanged();
+            }
+            else
+            {
+#if DEBUG
+				Console.WriteLine("ITEMGROUP: Failed to get ItemGroup");
+#endif
+            }
+        }
+#if DEBUG
+		Console.WriteLine($"ITEMGROUP: Got: {_itemGroups.Count()}");
+#endif
+    }
+    private async void SetAliasFromDB()
+    {
+#if DEBUG
+        Console.WriteLine("ALIAS: Get");
+#endif
+        if (_alias.Count() == 0)
+        {
+#if DEBUG
+			Console.WriteLine("ALIAS: Update from BD");
+#endif
+            IEnumerable<BrandAlias>? aliasDB = await GlobalVariables.B2SHttpClientHandler.GetAliasesAsync();
+            if (aliasDB != null && aliasDB.Count() > 0)
+            {
+                _alias.AddRange(aliasDB);
+                this.StateHasChanged();
+            }
+            else
+            {
+#if DEBUG
+				Console.WriteLine("ALIAS: Failed to get Alias");
+#endif
+            }
+        }
+#if DEBUG
+		Console.WriteLine($"ALIAS: Got: {_brands.Count()}");
+#endif
+    }
+    #endregion
+}
+
+
+

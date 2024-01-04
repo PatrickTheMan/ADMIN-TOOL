@@ -1,0 +1,38 @@
+﻿@using B2S_API_Comm.Models;
+@using B2S_MOP.Shared.CustomControls;
+
+<CustomPopUp  
+	@ref="_popUp"
+	Title="Delete Specification"
+	Description="Are you sure you want to delete this specification, your action can only be reverse manually."
+	HasChoice=true
+	PopUpType=Models.PopUpColors.Warning
+	OnActionCallback="HandleClick" 
+/>
+
+<div class="specification d-flex justify-content-between p-2 theme-border" style="height: fit-content; width: 200px;">
+	<div class="d-flex flex-column">
+		<p class="fw-bold m-0">@(SpecificationName)</p>
+		<p class="m-0">@(SpecificationValue)</p>
+	</div>
+	<div class="d-flex justify-content-center align-items-center">
+		<i class="material-icons icon-main-hover m-0" style="cursor: pointer;" @onclick="@OpenPopUp">
+			delete
+		</i>
+	</div>
+</div>
+
+
+@code {
+	[Parameter] public string SpecificationName { get; set; } = "Specification";
+	[Parameter] public string SpecificationValue { get; set; } = "Value";
+
+	private CustomPopUp _popUp = new();
+	private void OpenPopUp() => _popUp.Show();
+
+	[Parameter] public EventCallback<string> OnDeleteCallback { get; set; }
+	public void HandleClick(bool shouldDelete)
+	{
+		if (shouldDelete) OnDeleteCallback.InvokeAsync(SpecificationName);
+	}
+}

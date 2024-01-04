@@ -1,0 +1,81 @@
+﻿@using B2S_MOP.Models;
+
+<div class="@(ShowPopUp ? "d-block" : "d-none") h-100 w-100 position-absolute top-0 start-0" style="z-index: 9999;">
+	<div class="overlay h-100 w-100 position-absolute top-0 start-0" style="background-color: var(--overlay-color); opacity: 50%;"></div>
+
+	<div class="d-flex flex-column position-absolute top-50 start-50 translate-middle w-100 theme-foreground" style="max-width: 512px;">
+		<div class="w-100" style="background-color: @(PopUpType == PopUpColors.Warning ? "var(--warning-color)" : (PopUpType == PopUpColors.Info ? "var(--info-color)" : "var(--add-color)")); height: 0.5rem;"></div>
+		<div class="d-flex w-100 h-100 theme-border">
+			<div class="d-flex justify-content-center align-items-center w-25" style="aspect-ratio: 1/1;">
+				<i class="material-icons main-icon m-0" style="font-size: 3rem; color: @(PopUpType == PopUpColors.Warning ? "var(--warning-color)" : (PopUpType == PopUpColors.Info ? "var(--info-color)" : "var(--add-color)"));">
+					@(PopUpType == PopUpColors.Warning ? "warning" : (PopUpType == PopUpColors.Info ? "info" : "add"))
+				</i>
+			</div>
+			<div class="d-flex flex-column p-3 gap-2 w-100 h-100">
+				<p class="fw-bold m-0">@(Title ?? (HasChoice ? "Confirmation dialog" : "Alert"))</p>
+				<p class="m-0">@(Description ?? (HasChoice ? "Your input is required to continue, otherwise you can click cancel" : "Your action is required to continue"))</p>
+			</div>
+		</div>
+		<div class="d-flex flex-column p-2 gap-2 w-100 theme-background">
+			@if (RequiresInput)
+			{
+				<input autocomplete="off" class="m-0 ps-1 w-100 theme-border" style="outline: none;" placeholder="Write something ..." @bind="@_userInput" @oninput="@((e) => { _userInput = (string?) e.Value; })" />
+			}
+			<div class="d-flex justify-content-end gap-3">
+				@if (HasChoice)
+				{
+					<button class="secondary-button" @onclick=@(() => OnAction(false))>CANCEL</button>
+				}
+				<button class="primary-button" @onclick=@(() => OnAction(true)) disabled=@(!CanContinue())>@(HasChoice ? "CONFIRM" : "OK")</button>
+			</div>
+		</div>
+	</div>
+</div>
+
+@code {
+	[Parameter] public bool ShowPopUp { get; set; } = false;
+
+	[Parameter] public string? Title { get; set; } = null;
+	[Parameter] public string? Description { get; set; } = null;
+
+	[Parameter] public bool HasChoice { get; set; } = false;
+	[Parameter] public bool RequiresInput { get; set; } = false;
+
+	[Parameter] public PopUpColors PopUpType { get; set; } = PopUpColors.Info;
+
+	[Parameter] public EventCallback<bool> OnActionCallback { get; set; }
+	[Parameter] public EventCallback<string> OnInputSentCallback { get; set; }
+
+	private string? _userInput = null;
+
+	/// <summary>
+	/// Checks if the user can legally continue
+	/// </summary>
+	/// <returns> Whether the user can continue or not </returns>
+	private bool CanContinue()
+	{
+		return !string.IsNullOrEmpty(_userInput) || !RequiresInput;
+	}
+
+	/// <summary>
+	/// This is the method invoking the callback when the user takes action
+	/// </summary>
+	/// <param name="input"> The input from the action it is placed on </param>
+	public void OnAction(bool input)
+	{
+		ShowPopUp = false;
+		OnActionCallback.InvokeAsync(input);
+		if (input && RequiresInput) OnInputSentCallback.InvokeAsync(_userInput);
+		_userInput = null;
+		StateHasChanged();
+	}
+
+	/// <summary>
+	/// This is the method to show the pop-up
+	/// </summary>
+	public void Show()
+	{
+		ShowPopUp = true;
+		StateHasChanged();
+	}
+}

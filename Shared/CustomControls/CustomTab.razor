@@ -1,0 +1,34 @@
+﻿<div class=@("tab-container user-select-none d-flex justify-content-between align-items-center px-2 py-1 theme-border border-bottom-0 " + (IsSelected ? "selected" : string.Empty)) style="height: 32px;" @onclick="OnClick">
+    <p class="tab-text d-inline-block m-0 text-nowrap overflow-hidden text-truncate">@TabText</p>
+    @if (CanClose)
+    {
+        <img class="tab-icon" src="assets/close_icon.svg" @onclick="OnClose" @onclick:stopPropagation="true" />
+    }
+</div>
+
+@code {
+    [Parameter] public int TabID { get; set; }
+    [Parameter] public string TabText { get; set; } = "Tab";
+    [Parameter] public bool CanClose { get; set; } = true;
+    [Parameter] public bool IsSelected { get; set; } = false;
+
+    [Parameter] public EventCallback<int> OnClickCallback { get; set; }
+    /// <summary>
+    /// Invokes the event callback when the tab is clicked
+    /// Sending back the TabID
+    /// </summary>
+    public async void OnClick ()
+    {
+        await OnClickCallback.InvokeAsync(TabID);
+    }
+
+    [Parameter] public EventCallback<int> OnCloseCallback { get; set; }
+    /// <summary>
+    /// Invokes the event callback when the tab is closed
+    /// Sending back the TabID
+    /// </summary>
+    public void OnClose()
+    {
+        OnCloseCallback.InvokeAsync(TabID);
+    }
+}

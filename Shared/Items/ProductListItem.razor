@@ -1,0 +1,23 @@
+﻿@using B2S_API_Comm.Models;
+@using B2S_API_Comm.Domain;
+
+
+<div class="product-list-item-container w-100 d-flex flex-column p-3 justify-content-center theme-border" @onclick="OnClick">
+	<p class="m-0">
+		@(Product?.PrdProductNumber ?? "Unknown Product Number")
+	</p>
+</div>
+
+@code {
+	[Parameter] public int Index { get; set; }
+	[Parameter] public Product? Product { get; set; }
+
+	[Parameter] public EventCallback<int> OnClickCallback { get; set; }
+	/// <summary>
+	/// Method used for when the user clicks on the product
+	/// </summary>
+	public void OnClick()
+	{
+		OnClickCallback.InvokeAsync(Index);
+	}
+}

@@ -1,0 +1,27 @@
+﻿@using B2S_API_Comm.Domain;
+
+<div class="db-element-list-item-container p-2 d-flex flex-column justify-content-center align-items-start theme-border-bottom @(_selected ? "selected-db" : "")" @onclick="@SelectThis">
+	<p class="db-element-list-item-name fw-bold m-0">@Name</p>
+</div>
+
+
+@code {
+
+	private bool _selected = false;
+
+	[Parameter] public object Object { get; set; } = new();
+	[Parameter] public string Name { get; set; } = "Name";
+
+	[Parameter] public EventCallback<DBElementListItem> SelectColorCallBack { get; set; }
+	[Parameter] public EventCallback<object> SelectCallBack { get; set; }
+	public void SelectThis()
+	{
+		_selected = true;
+		SelectCallBack.InvokeAsync(Object);
+		SelectColorCallBack.InvokeAsync(this);
+	}
+	public void DeselectThis()
+	{
+		_selected = false;
+	}
+}

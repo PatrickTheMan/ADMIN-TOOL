@@ -1,0 +1,51 @@
+﻿.tab-container {
+	background-color: var(--light-foreground-color);
+	color: var(--dark-text-color);
+	width: 128px;
+	transition: background-color 0.2s, color 0.2s;
+	cursor: pointer;
+}
+
+	.tab-container:hover {
+		background-color: var(--main-color);
+		color: var(--light-text-color);
+	}
+
+		.tab-container:hover .tab-icon {
+			visibility: visible;
+		}
+
+.selected {
+	background-color: var(--main-color);
+	color: var(--light-text-color);
+}
+
+.tab-icon {
+	visibility: hidden;
+	pointer-events: all;
+	transition: visibility 0.2s, filter 0.2s;
+}
+
+	.tab-icon:hover {
+		filter: invert(100%);
+	}
+
+@media (prefers-color-scheme: dark) {
+	.tab-container {
+		background-color: var(--dark-foreground-color);
+		color: var(--light-text-color);
+		width: 128px;
+		transition: background-color 0.2s, color 0.2s;
+		cursor: pointer;
+	}
+
+		.tab-container:hover {
+			background-color: var(--main-color);
+			color: var(--dark-text-color);
+		}
+
+	.selected {
+		background-color: var(--main-color);
+		color: var(--dark-text-color);
+	}
+}

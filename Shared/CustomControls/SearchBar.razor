@@ -1,0 +1,181 @@
+﻿@using B2S_API_Comm.Models;
+@using B2S_API_Comm.Services.Interfaces;
+@using B2S_API_Comm.Services.Models;
+@using B2S_API_Comm.Domain;
+@using System.Text.RegularExpressions;
+@using B2S_MOP.Models;
+@using global::Models.Handlers;
+
+
+<!-- Components for the main part - the search bar -->
+<div class="search-bar-container-main d-flex p-3 align-items-center justify-content-between theme-border-bottom theme-foreground">
+	<!-- Components for the main section of the search bar -->
+	<div id="search-bar-container" class="d-flex gap-2 align-items-center">
+		<i class="material-icons icon-main-hover m-0" style="cursor: pointer;" @onclick="@(() => Search())">
+			search
+		</i>
+		<div class="theme-border search-bar-divider" style="width: 1px; height: 24px;"></div>
+		<input id="search-bar-text" autocomplete="off" class="border-0 m-0 theme-dark-text" style="background-color: transparent; outline: none;" @bind="@_searchTerm" @oninput="@((e) => { _searchTerm = (string?) e.Value; })" placeholder="Search for product . . ." type="text" />
+	</div>
+	<!-- Filter icon -->
+	<i class="material-icons icon-main-hover m-0" style="cursor: pointer;" @onclick="ChangeIsAdvancedFiltersOpen">
+		filter_alt
+	</i>
+</div>
+
+<!-- Components for the advanced filter pop-out -->
+<div class="advanced-filter-container position-absolute d-flex flex-column p-2 gap-2 theme-border theme-foreground" style="@(_isAdvancedFiltersOpen ? "visibility: visible;" : "visibility: hidden;")">
+	<input class="m-0 theme-border theme-dark-text" autocomplete="off" style="background-color: transparent; outline: none; height: 32px;" @onkeydown="@Enter" @bind="@_eanUpcNumber" @oninput="@((e) => { _eanUpcNumber = (string?) e.Value; })" placeholder="EAN / UPC number" type="text" />
+	<input class="m-0 theme-border theme-dark-text" autocomplete="off" style="background-color: transparent; outline: none; height: 32px;" @onkeydown="@Enter" @bind="@_productNumber" @oninput="@((e) => { _productNumber = (string?) e.Value; })" placeholder="Product number" type="text" />
+	<input class="m-0 theme-border theme-dark-text" autocomplete="off" style="background-color: transparent; outline: none; height: 32px;" @onkeydown="@Enter" @bind="@_typeNumber" @oninput="@((e) => { _typeNumber = (string?) e.Value; })" placeholder="Type number" type="text" />
+	<Dropdown OnSelectedChanged="SetBrandName" Items=@(_brandNames) />
+	<Dropdown OnSelectedChanged="SetGroupName" Items=@(_groupNames) />
+	<button class="primary-button border-0 m-0" onclick="@(() => Search(true))">Advanced Search</button>
+</div>
+
+@code {
+	[Parameter] public List<Brand>? Brands { get; set; }
+	[Parameter] public List<ItemGroup>? Groups { get; set; }
+
+	[Parameter] public EventCallback<List<Product>> OnSearch { get; set; }
+
+	private string? _searchTerm = string.Empty;
+
+	private string? _groupName = null;
+	private string? _brandName = null;
+	private string? _eanUpcNumber = string.Empty;
+	private string? _productNumber = string.Empty;
+	private string? _typeNumber = string.Empty;
+
+	private List<string> _brandNames;
+	private List<string> _groupNames;
+
+	private bool _isAdvancedFiltersOpen = false;
+
+	#region Advanced filter open
+	/// <summary>
+	/// This method is for expanding/collapsing the advanced filter menu
+	/// In order to see the adanced filter options
+	/// </summary>
+	void ChangeIsAdvancedFiltersOpen()
+	{
+		if (_isAdvancedFiltersOpen)
+		{
+			ResetParameters();
+		}
+		_isAdvancedFiltersOpen = !_isAdvancedFiltersOpen;
+	}
+	#endregion
+
+	#region Dropdown Info Update
+	/// <summary>
+	/// 
+	/// </summary>
+	/// <param name="brandName"></param>
+	private void SetBrandName(string brandName)
+	{
+		_brandName = brandName;
+	}
+	/// <summary>
+	/// 
+	/// </summary>
+	/// <param name="groupName"></param>
+	private void SetGroupName(string groupName)
+	{
+		_groupName = groupName;
+	}
+	#endregion
+	#region Searching
+	/// <summary>
+	/// This methods is only for detecting if the 'enter' key was pressed
+	/// </summary>
+	/// <param name="e"></param>
+	public void Enter(KeyboardEventArgs e)
+	{
+		if (e.Code == "Enter" || e.Code == "NumpadEnter") Search();
+	}
+
+	/// <summary>
+	/// This method is for retrieving and storing the items from the API
+	/// </summary>
+	/// <param name="advancedSearch">Whether or not to apply the advanced filter</param>
+	public async void Search(bool advancedSearch = false)
+	{
+#if DEBUG
+	Console.WriteLine("SEARCH: For Products Start");
+#endif
+
+		List<Product> products = new List<Product>();
+		if (advancedSearch)
+		{
+			bool isEAN = false;
+			bool isUPC = false;
+
+			if (!string.IsNullOrEmpty(_eanUpcNumber))
+			{
+				isEAN = Regex.IsMatch(_eanUpcNumber, @"^\d{8}$|^\d{13}$");
+				isUPC = Regex.IsMatch(_eanUpcNumber, @"^\d{12}$");
+			}
+
+			products = (await GlobalVariables.B2SHttpClientHandler.GetProductsAsync(
+				new ProductRequest(){
+					Brand = !string.IsNullOrEmpty(_brandName) ? _brandName : null,
+					ItemGroup = !string.IsNullOrEmpty(_groupName) ? _groupName : null,
+					EAN = isEAN ? _eanUpcNumber : null,
+					UPC = isUPC ? _eanUpcNumber : null,
+					ProductNumber = !string.IsNullOrEmpty(_productNumber) ? _productNumber : null,
+					TypeNumber = !string.IsNullOrEmpty(_typeNumber) ? _typeNumber : null,
+					Index = 0,
+					Amount = 50
+				}
+			))?.ToList() ?? new List<Product>();
+		}
+		else
+		{
+			products = (await GlobalVariables.B2SHttpClientHandler.GetProductsAsync(_searchTerm.Split(" ")))?.ToList() ?? new();
+		}
+
+		#if DEBUG
+	Console.WriteLine("SEARCH: For Products Init");
+		#endif
+		await OnSearch.InvokeAsync(products);
+#if DEBUG
+	Console.WriteLine("SEARCH: For Products End");
+#endif
+		_searchTerm = string.Empty; // Reset search
+		this.StateHasChanged();
+	}
+	#endregion
+	#region Reset
+	/// <summary>
+	/// This method is for resetting the parameters in the advanced filter
+	/// </summary>
+	public void ResetParameters()
+	{
+		_eanUpcNumber = string.Empty;
+		_productNumber = string.Empty;
+		_typeNumber = string.Empty;
+		_brandName = null;
+		_groupName = null;
+	}
+	#endregion
+	#region Dropdown list set
+	/// <summary>
+	/// Sets the brands and groups in the dropdowns
+	/// </summary>
+	protected override void OnParametersSet()
+	{
+		_brandNames = new();
+		foreach (Brand b in Brands)
+		{
+			_brandNames.Add(b.BrdName);
+		}
+		_groupNames = new();
+		foreach (ItemGroup g in Groups)
+		{
+			_groupNames.Add(g.GrpName);
+		}
+		this.StateHasChanged();
+	}
+	#endregion
+}

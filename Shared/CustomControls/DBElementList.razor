@@ -1,0 +1,257 @@
+﻿@using B2S_API_Comm.Models;
+@using B2S_MOP.Models;
+@using B2S_MOP.Shared.Items
+@using System.Reflection;
+
+<link rel="stylesheet" href="/css/universal.css" />
+
+<CustomPopUp @ref="CustomPopupRef"
+             PopUpType="PopUpColors.Info" />
+<CustomPopUp @ref="CustomPopupRefDelete"
+             Title="Delete"
+             Description="@($"Do you want to remove {SelectedElementName}?")"
+             HasChoice = "true"
+             PopUpType="PopUpColors.Warning"
+             OnActionCallback="ElementDeleteCallback"/>
+<CustomPopUp @ref="CustomPopupRefAdd"
+             Title="Add"
+             Description="@($"Setup the new item.")"
+             HasChoice="true"
+             RequiresInput="true"
+             PopUpType="PopUpColors.Add"
+             OnInputSentCallback="ElementAddCallback" />
+
+<div class="h-100 d-flex flex-column p-3 gap-2 theme-border theme-foreground">
+    <div class="search-bar-container-main d-flex align-items-center justify-content-between theme-foreground">
+        <!-- Components for the main section of the search bar -->
+        <div class="d-flex gap-2 align-items-center">
+            <i class="material-icons icon-main-hover m-0" style="cursor: pointer;" @onclick="@(() => Search())">
+                search
+            </i>
+            <div class="search-bar-divider theme-border" style="width: 1px; height: 24px;"></div>
+            <input autocomplete="off" id="search-bar-text" class="theme-dark-text border-0 m-0" style="background-color: transparent; outline: none;" @bind="@SearchTerm" @oninput="@((e) => { SearchTerm = (string?) e.Value; })" placeholder="Search . . ." type="text" />
+        </div>
+    </div>
+    <div class="h-100 w-100 overflow-auto mt-2 mb-2 theme-border">
+        @foreach (object o in _currentElements) {
+            <DBElementListItem Name="@(GetObjectName(o))"
+                               Object="@(o)"
+                               SelectCallBack="SelectElement"
+                               SelectColorCallBack="SelectEntry" />
+        }
+    </div>
+    <div class="w-100 d-flex gap-3 justify-content-evenly">
+        <button class="secondary-button w-100" @onclick="RemoveElement">
+            REMOVE
+        </button>
+        <button class="primary-button w-100" @onclick="AddElement">
+            ADD
+        </button>
+    </div>
+</div>
+
+@code {
+    #region Variables
+    private DBElementListItem? _selectedListItem = null;
+    #endregion
+
+    #region Properties
+    public object? SelectedElement { get; set; } = null;
+    public string? SelectedElementName = string.Empty;
+    public string? SearchTerm = string.Empty;
+    private List<object> _gottenElements = new();
+    private List<object> _currentElements = new();
+
+#pragma warning disable BL0007 //GottenElements should be Automatic Property is, manually set
+    [Parameter]
+    public List<object> GottenElements {
+        get {
+            return _gottenElements;
+        }
+        set {
+            _gottenElements = value;
+            _currentElements = new List<object>(_gottenElements);
+        }
+    }
+#pragma warning restore BL0007
+    [Parameter] public EventCallback ElementSelectedCallback { get; set; }
+    [Parameter] public EventCallback<string> ElementAddCallback { get; set; }
+    [Parameter] public EventCallback<bool> ElementDeleteCallback { get; set; }
+    [Parameter] public bool CanNotDeleteLastElement { get; set; } = false;
+    #endregion
+
+    #region Popup
+    private CustomPopUp CustomPopupRef = new();
+    private void OpenPopup() => CustomPopupRef.Show();
+    private CustomPopUp CustomPopupRefDelete = new();
+    private void OpenPopupDelete() => CustomPopupRefDelete.Show();
+    private CustomPopUp CustomPopupRefAdd = new();
+    private void OpenPopupAdd() => CustomPopupRefAdd.Show();
+    private CustomInputPopUp CustomInputPopUp = new();
+    private void OpenInputPopup() => CustomInputPopUp.Show();
+    #endregion
+
+    #region Element Handling
+    /// <summary>
+    /// Initiates a add element workflow
+    /// </summary>
+    public void AddElement() {
+        if (_gottenElements.Count <= 0)
+        {
+#pragma warning disable BL0005 // Component parameter should not be set outside of its component
+            CustomPopupRef.Title = "Error";
+            CustomPopupRef.Description = "Could not identify the type of element";
+#pragma warning restore BL0005
+            OpenPopup();
+        }
+        else
+        {
+            OpenPopupAdd();
+        }
+    }
+
+    /// <summary>
+    /// Initiates a remove element workflow
+    /// </summary>
+    public void RemoveElement() {
+        if (_gottenElements.Count == 1 && CanNotDeleteLastElement)
+        {
+#pragma warning disable BL0005 // Component parameter should not be set outside of its component
+            CustomPopupRef.Title = "Error";
+            CustomPopupRef.Description = "Cannot delete last element";
+#pragma warning restore BL0005
+            OpenPopup();
+        }
+        else if (SelectedElement == null) {
+#pragma warning disable BL0005 // Component parameter should not be set outside of its component
+            CustomPopupRef.Title = "Error";
+            CustomPopupRef.Description = "No element has been selected";
+#pragma warning restore BL0005
+            OpenPopup();
+        }
+        else
+        {
+            OpenPopupDelete();
+        }
+    }
+
+    /// <summary>
+    /// Selects the clicked child element. Used as a EventCallback
+    /// </summary>
+    /// <param name="o">The object to select</param>
+    public void SelectElement(object o) {
+        if (!o.Equals(SelectedElement)) {
+            _selectedListItem?.DeselectThis();
+            SelectedElement = o;
+            SelectedElementName = GetObjectName(SelectedElement);
+            ElementSelectedCallback.InvokeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Used to select the visual element. Used as a EventCallback
+    /// </summary>
+    /// <param name="listItem"></param>
+    public void SelectEntry(DBElementListItem listItem) {
+        _selectedListItem = listItem;
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    public void ReSelectSelectedEntry()
+    {
+        SelectedElementName = GetObjectName(SelectedElement);
+    }
+
+    /// <summary>
+    /// Used to deselect the visual element
+    /// </summary>
+    public void DeSelectSelectedEntry()
+    {
+        _selectedListItem?.DeselectThis();
+        SelectedElement = null;
+        SelectedElementName = null;
+        _selectedListItem = null;
+    }
+    #endregion
+
+    #region Search
+    /// <summary>
+    /// Search in the elements that was received
+    /// </summary>
+    public void Search() {
+        List<object> elements;
+        if (SearchTerm.Length > 0) {
+            elements = _gottenElements
+            .Where(e => {
+                return PropsList(e)
+                .First(p => { return p.Name.ToLower().Contains("name") || p.Name.ToLower().Contains("alias"); })
+                .GetValue(e).ToString().ToLower().Contains(SearchTerm.ToLower());
+            }).ToList();
+        } else {
+            elements = _gottenElements;
+        }
+        _currentElements.Clear();
+        _currentElements.AddRange(elements);
+    }
+
+    /// <summary>
+    /// Enables the user to use Enter for searching
+    /// </summary>
+    /// <param name="e"></param>
+    public void Enter(KeyboardEventArgs e) {
+        if (e.Code == "Enter" || e.Code == "NumpadEnter")
+            Search();
+    }
+    #endregion
+
+    #region Reflection
+    /// <summary>
+    /// Gets the name of the Object
+    /// </summary>
+    /// <param name="o">Object to find name of</param>
+    /// <returns>The name</returns>
+    private string? GetObjectName(object o) {
+        string? name = PropsList(o).First(p => ContainsProperty(p, "name") || ContainsProperty(p, "alias")) != null ?
+                    PropsList(o).First(p => ContainsProperty(p, "name") || ContainsProperty(p, "alias")).GetValue(o)?.ToString() :
+                    o.ToString();
+        return name;
+    }
+
+    /// <summary>
+    /// Gets the <see cref="Type"/> of the object property
+    /// </summary>
+    /// <param name="o">The Object containing the property</param>
+    /// <param name="propertyName">The name of the property</param>
+    /// <returns>The <see cref="Type"/></returns>
+    private Type GetTypeOfProp(object o, string propertyName)
+    {
+        return o.GetType().GetProperties().Where(p => { return p.Name.ToLower().Equals(propertyName); }).GetType();
+    }
+
+    /// <summary>
+    /// Gets a list of all <see cref="PropertyInfo"/> in an Object
+    /// </summary>
+    /// <param name="o">The Object</param>
+    /// <returns>A list of <see cref="PropertyInfo"/></returns>
+    private PropertyInfo[] PropsList(object o) {
+        return o.GetType().GetProperties();
+    }
+
+    /// <summary>
+    /// Checks if the <see cref="PropertyInfo"/> name is the one searching for
+    /// </summary>
+    /// <param name="p">The <see cref="PropertyInfo"/></param>
+    /// <param name="propertyName">The name of the property that is being searched for</param>
+    /// <returns>Wether the property is the right one or not</returns>
+    private bool ContainsProperty(PropertyInfo p, string propertyName) {
+        return p.Name.ToLower().Contains(propertyName);
+    }
+    #endregion
+
+}
+
+
+
+

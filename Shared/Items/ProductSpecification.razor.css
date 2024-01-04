@@ -1,0 +1,7 @@
+﻿.specification > div > i {
+    visibility: hidden;
+}
+
+.specification:hover > div > i {
+    visibility: visible;
+}
